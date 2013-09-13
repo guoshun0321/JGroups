@@ -73,6 +73,10 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
     @Property(description="View bundling toggle")
     protected boolean view_bundling=true;
 
+    @Property(description="If true, then GMS is allowed to send VIEW messages with delta views, otherwise " +
+      "it always sends full views. See https://issues.jboss.org/browse/JGRP-1354 for details.")
+    protected boolean use_delta_views=true;
+
     @Property(description="Max view bundling timeout if view bundling is turned on. Default is 50 msec")
     protected long max_bundling_time=50; // 50ms max to wait for other JOIN, LEAVE or SUSPECT requests
 
@@ -557,7 +561,7 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
         // Send down a local TMP_VIEW event. This is needed by certain layers (e.g. NAKACK) to compute correct digest
         // in case client's next request (e.g. getState()) reaches us *before* our own view change multicast.
         // Check NAKACK's TMP_VIEW handling for details
-        up_prot.up(new Event(Event.TMP_VIEW,new_view));
+        up_prot.up(new Event(Event.TMP_VIEW, new_view));
         down_prot.down(new Event(Event.TMP_VIEW, new_view));
 
         List<Address> ackMembers=new ArrayList<Address>(new_view.getMembers());

@@ -154,7 +154,7 @@ public class CoordGmsImpl extends ServerGmsImpl {
         for(Iterator<Address> it=new_mbrs.iterator(); it.hasNext();) {
             Address mbr=it.next();
             if(gms.members.contains(mbr)) { // already joined: return current digest and membership
-                log.warn("%s: %s already present; returning existing view %s", gms.local_addr, mbr, gms.view);
+                log.trace("%s: %s already present; returning existing view %s", gms.local_addr, mbr, gms.view);
                 Tuple<View,Digest> tuple=gms.getViewAndDigest();
                 if(tuple != null)
                     gms.sendJoinResponse(new JoinRsp(tuple.getVal1(), tuple.getVal2()), mbr);
