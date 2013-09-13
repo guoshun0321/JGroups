@@ -549,10 +549,9 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
 
 
     /**
-     * Broadcasts the new view and digest, and waits for acks from all members in the list given as argument.
-     * If the list is null, we take the members who are part of new_view
+     * Broadcasts the new view and digest as a VIEW message and waits for acks from existing members
      */
-    public void castViewChange(View new_view, Digest digest, JoinRsp jr, Collection<Address> newMembers) {
+    public void castViewChange(View new_view, Digest digest, Collection<Address> newMembers) {
         log.trace("%s: mcasting view %s (%d mbrs)\n", local_addr, new_view, new_view.size());
 
         // Send down a local TMP_VIEW event. This is needed by certain layers (e.g. NAKACK) to compute correct digest
@@ -589,20 +588,21 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
                          local_addr, ack_collector.expectedAcks(), new_view.getViewId(), view_ack_collection_timeout,
                          ack_collector.printMissing());
         }
+    }
 
+    public void sendJoinResponses(ViewId view_id, JoinRsp jr, Collection<Address> newMembers) {
         if(jr != null && newMembers != null && !newMembers.isEmpty()) {
             ack_collector.reset(new ArrayList<Address>(newMembers));
             for(Address joiner: newMembers)
                 sendJoinResponse(jr, joiner);
             try {
                 ack_collector.waitForAllAcks(view_ack_collection_timeout);
-                log.trace("%s: got all ACKs (%d) from joiners for view %s",
-                          local_addr, ack_collector.expectedAcks(), new_view.getViewId());
+                log.trace("%s: got all ACKs (%d) from joiners for view %s", local_addr, ack_collector.expectedAcks(), view_id);
             }
             catch(TimeoutException e) {
                 if(log_collect_msgs)
                     log.warn("%s: failed to collect all ACKs (expected=%d) for unicast view %s after %dms, missing ACKs from %s",
-                             local_addr, ack_collector.expectedAcks(), new_view, view_ack_collection_timeout,  ack_collector.printMissing());
+                             local_addr, ack_collector.expectedAcks(), view_id, view_ack_collection_timeout,  ack_collector.printMissing());
             }
         }
     }

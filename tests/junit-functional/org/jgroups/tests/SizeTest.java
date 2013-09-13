@@ -397,6 +397,13 @@ public class SizeTest {
     }
 
 
+    public static void testLargeView() throws Exception {
+        Address[] members=Util.createRandomAddresses(1000);
+        View view=View.create(members[0], 1, members);
+        _testSize(view);
+    }
+
+
     public static void testMergeView() throws Exception {
         ViewId vid=new ViewId(UUID.randomUUID(), 322649);
         List<Address> mbrs=new ArrayList<Address>();
