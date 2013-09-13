@@ -84,7 +84,7 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
     protected int num_prev_mbrs=50;
 
     @Property(description="Number of views to store in history")
-    protected int num_prev_views=20;
+    protected int num_prev_views=10;
 
     @Property(description="Time in ms to wait for all VIEW acks (0 == wait forever. Default is 2000 msec" )
     protected long view_ack_collection_timeout=2000;
@@ -108,7 +108,7 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
     protected int num_views;
 
     /** Stores the last 20 views */
-    protected BoundedList<Tuple<View,Long>> prev_views;
+    protected BoundedList<String> prev_views;
 
 
     /* --------------------------------------------- Fields ------------------------------------------------ */
@@ -297,8 +297,8 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
     @ManagedOperation
     public String printPreviousViews() {
         StringBuilder sb=new StringBuilder();
-        for(Tuple<View,Long> tmp: prev_views)
-            sb.append(new Date(tmp.getVal2())).append(": ").append(tmp.getVal1()).append("\n");
+        for(String view_rep: prev_views)
+            sb.append(view_rep).append("\n");
         return sb.toString();
     }
 
@@ -369,7 +369,7 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
         if(merge_timeout <= 0)
             throw new IllegalArgumentException("merge_timeout has to be greater than 0");
         prev_members=new BoundedList<Address>(num_prev_mbrs);
-        prev_views=new BoundedList<Tuple<View,Long>>(num_prev_views);
+        prev_views=new BoundedList<String>(num_prev_views);
         TP transport=getTransport();
         timer=transport.getTimer();
         if(timer == null)
@@ -701,7 +701,7 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
 
         if(stats) {
             num_views++;
-            prev_views.add(new Tuple<View,Long>(new_view, System.currentTimeMillis()));
+            prev_views.add(new Date() + ": " + new_view);
         }
     }
 
