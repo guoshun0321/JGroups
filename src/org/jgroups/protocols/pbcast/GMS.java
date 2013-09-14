@@ -568,6 +568,9 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
         if(newMembers != null && !newMembers.isEmpty())
             ackMembers.removeAll(newMembers);
 
+        if(use_delta_views && view != null && !(new_view instanceof MergeView))
+            new_view=createDeltaView(view, new_view);
+
         // bcast to all members
         Message view_change_msg=new Message().putHeader(this.id, new GmsHeader(GmsHeader.VIEW, new_view, digest));
 
@@ -594,8 +597,9 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
         }
     }
 
-    public void sendJoinResponses(ViewId view_id, JoinRsp jr, Collection<Address> newMembers) {
+    public void sendJoinResponses(JoinRsp jr, Collection<Address> newMembers) {
         if(jr != null && newMembers != null && !newMembers.isEmpty()) {
+            final ViewId view_id=jr.getView().getViewId();
             ack_collector.reset(new ArrayList<Address>(newMembers));
             for(Address joiner: newMembers)
                 sendJoinResponse(jr, joiner);
@@ -710,6 +714,13 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
         synchronized(members) {
             return members.size() > 0? members.elementAt(0) : null;
         }
+    }
+
+    protected static View createDeltaView(final View current_view, final View next_view) {
+        final ViewId current_view_id=current_view.getViewId();
+        final ViewId next_view_id=next_view.getViewId();
+        Address[][] diff=View.diff(current_view, next_view);
+        return new DeltaView(next_view_id, current_view_id, diff[1], diff[0]);
     }
 
 
@@ -844,6 +855,20 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
                         View new_view=hdr.view;
                         if(new_view == null)
                             return null;
+
+                        if(new_view instanceof DeltaView) {
+                            // Discards view with id lower than or equal to our own. Will be installed without check if it is the first view
+                            ViewId delta_view_id=new_view.getViewId();
+                            if(view != null && delta_view_id.compareToIDs(view.getViewId()) <= 0)
+                                return null;
+                            try {
+                                new_view=createViewFromDeltaView(view,(DeltaView)new_view);
+                            }
+                            catch(Throwable t) {
+                                log.warn("%s: failed to create a view from the delta-view; discarding view: %s", local_addr, t);
+                                return null;
+                            }
+                        }
 
                         Address coord=msg.getSrc();
                         if(!new_view.containsMember(coord)) {
@@ -1039,6 +1064,25 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
         down_prot.down(new Event(Event.MSG,view_ack));
     }
 
+
+    protected View createViewFromDeltaView(View current_view, DeltaView delta_view) {
+        if(current_view == null || delta_view == null)
+            return null;
+        ViewId current_view_id=current_view.getViewId(),
+          delta_prev_view_id=delta_view.getPreviousViewId(),
+          delta_view_id=delta_view.getViewId();
+        if(!current_view_id.equals(delta_prev_view_id))
+            throw new IllegalStateException("the view-id of the delta view ("+delta_prev_view_id+") doesn't match the " +
+                                              "current view-id ("+current_view_id+"); discarding delta view");
+        List<Address> current_mbrs=current_view.getMembers();
+        List<Address> left_mbrs=Arrays.asList(delta_view.getLeftMembers());
+        List<Address> new_mbrs=Arrays.asList(delta_view.getNewMembers());
+
+
+        List<Address> new_mbrship=computeNewMembership(current_mbrs,new_mbrs,left_mbrs,Collections.<Address>emptyList());
+        return new View(delta_view_id, new_mbrship);
+    }
+
     /* --------------------------- End of Private Methods ------------------------------- */
 
     public static class DefaultMembershipPolicy implements MembershipChangePolicy {
@@ -1131,8 +1175,9 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
         public static final short MERGE_ID_PRESENT = 1 << 3;
         public static final short USE_FLUSH        = 1 << 4;
         public static final short MERGE_REJECTED   = 1 << 5;
-        public static final short MERGE_VIEW       = 1 << 6; // if a view is present, is it a View or a MergeView ?
-        public static final short READ_ADDRS       = 1 << 7; // if my_digest needs to read its own addresses (rather than that of view)
+        public static final short MERGE_VIEW       = 1 << 6; // if a view is present, is it a MergeView ?
+        public static final short DELTA_VIEW       = 1 << 7; // if a view is present, is it a DeltaView ?
+        public static final short READ_ADDRS       = 1 << 8; // if my_digest needs to read its own addresses (rather than that of view)
 
 
         protected byte    type;
@@ -1222,7 +1267,9 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
             short flags=in.readShort();
 
             if((flags & VIEW_PRESENT) == VIEW_PRESENT) {
-                view=(flags & MERGE_VIEW) == MERGE_VIEW? new MergeView() : new View();
+                view=(flags & MERGE_VIEW) == MERGE_VIEW? new MergeView() :
+                  (flags & DELTA_VIEW) == DELTA_VIEW? new DeltaView() :
+                    new View();
                 view.readFrom(in);
             }
 
@@ -1282,6 +1329,8 @@ public class GMS extends Protocol implements DiagnosticsHandler.ProbeHandler {
                 retval|=VIEW_PRESENT;
                 if(view instanceof MergeView)
                     retval|=MERGE_VIEW;
+                else if(view instanceof DeltaView)
+                    retval|=DELTA_VIEW;
             }
             if(join_rsp != null)  retval|=JOIN_RSP_PRESENT;
             if(digest != null) retval|=DIGEST_PRESENT;

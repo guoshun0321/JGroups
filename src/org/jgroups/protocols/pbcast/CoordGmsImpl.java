@@ -210,14 +210,14 @@ public class CoordGmsImpl extends ServerGmsImpl {
                     join_rsp=new JoinRsp(new_view, join_digest);
                 else
                     log.warn("%s: digest does not match view (missing seqnos for %s); dropping JOIN-RSP",
-                             gms.local_addr, join_digest.getNonSetMembers());
+                             gms.local_addr, Arrays.toString(join_digest.getNonSetMembers()));
             }
 
             sendLeaveResponses(leaving_mbrs); // no-op if no leaving members
 
             // we don't need to send the digest to existing members: https://issues.jboss.org/browse/JGRP-1317
             gms.castViewChange(new_view, null, new_mbrs);
-            gms.sendJoinResponses(new_view.getViewId(), join_rsp, new_mbrs);
+            gms.sendJoinResponses(join_rsp, new_mbrs);
         }
         finally {
             if(hasJoiningMembers)

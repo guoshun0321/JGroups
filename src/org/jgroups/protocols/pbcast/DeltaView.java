@@ -49,7 +49,7 @@ public class DeltaView extends View {
 
     public ViewId    getPreviousViewId() {return prev_view_id;}
     public Address[] getLeftMembers()    {return left_members;}
-    public Address[] getNew_members()    {return new_members;}
+    public Address[] getNewMembers()    {return new_members;}
 
 
     public int serializedSize() {
